@@ -87,7 +87,6 @@ public class OrderApiController {
 
     @Data
     static class OrderDto {
-
         private Long orderId;
         private String name;
         private LocalDateTime orderDate;
