@@ -1,22 +1,29 @@
 package jpabook.jpashop.repository.order;
 
+import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import jpabook.jpashop.domain.Order;
+import jpabook.jpashop.domain.OrderStatus;
 import jpabook.jpashop.repository.OrderSearch;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
 import javax.persistence.EntityManager;
-import javax.persistence.TypedQuery;
-import javax.persistence.criteria.*;
-import java.util.ArrayList;
 import java.util.List;
 
+import static jpabook.jpashop.domain.QMember.member;
+import static jpabook.jpashop.domain.QOrder.order;
+
 @Repository
-@RequiredArgsConstructor
 public class OrderRepository {
 
     private final EntityManager em;
+    private final JPAQueryFactory query ;
+
+    public OrderRepository(EntityManager em) {
+        this.em = em;
+        this.query = new JPAQueryFactory(em);
+    }
 
     public void save(Order order) {
         em.persist(order);
@@ -26,29 +33,53 @@ public class OrderRepository {
         return em.find(Order.class, id);
     }
 
+//    public List<Order> findAll(OrderSearch orderSearch) {
+//        CriteriaBuilder cb = em.getCriteriaBuilder();
+//        CriteriaQuery<Order> cq = cb.createQuery(Order.class);
+//        Root<Order> o = cq.from(Order.class);
+//        Join<Object, Object> m = o.join("member", JoinType.INNER);
+//
+//        List<Predicate> criteria = new ArrayList<>();
+//
+//        //주문 상태 검색
+//        if (orderSearch.getOrderStatus() != null) {
+//            Predicate status = cb.equal(o.get("status"), orderSearch.getOrderStatus());
+//            criteria.add(status);
+//        }
+//        //회원 이름 검색
+//        if (StringUtils.hasText(orderSearch.getMemberName())) {
+//            Predicate name =
+//                    cb.like(m.<String>get("name"), "%" + orderSearch.getMemberName() + "%");
+//            criteria.add(name);
+//        }
+//
+//        cq.where(cb.and(criteria.toArray(new Predicate[criteria.size()])));
+//        TypedQuery<Order> query = em.createQuery(cq).setMaxResults(1000);
+//        return query.getResultList();
+//    }
+
     public List<Order> findAll(OrderSearch orderSearch) {
-        CriteriaBuilder cb = em.getCriteriaBuilder();
-        CriteriaQuery<Order> cq = cb.createQuery(Order.class);
-        Root<Order> o = cq.from(Order.class);
-        Join<Object, Object> m = o.join("member", JoinType.INNER);
+        return query
+                .select(order)
+                .from(order)
+                .join(order.member, member)
+                .where(statusEq(orderSearch.getOrderStatus()), nameLike(orderSearch))
+                .limit(1000)
+                .fetch();
+    }
 
-        List<Predicate> criteria = new ArrayList<>();
-
-        //주문 상태 검색
-        if (orderSearch.getOrderStatus() != null) {
-            Predicate status = cb.equal(o.get("status"), orderSearch.getOrderStatus());
-            criteria.add(status);
+    private BooleanExpression nameLike(OrderSearch orderSearch) {
+        if (!StringUtils.hasText(orderSearch.getMemberName())) {
+            return null;
         }
-        //회원 이름 검색
-        if (StringUtils.hasText(orderSearch.getMemberName())) {
-            Predicate name =
-                    cb.like(m.<String>get("name"), "%" + orderSearch.getMemberName() + "%");
-            criteria.add(name);
-        }
+        return member.name.like(orderSearch.getMemberName());
+    }
 
-        cq.where(cb.and(criteria.toArray(new Predicate[criteria.size()])));
-        TypedQuery<Order> query = em.createQuery(cq).setMaxResults(1000);
-        return query.getResultList();
+    private BooleanExpression statusEq(OrderStatus statusCond) {
+        if (statusCond == null) {
+            return null;
+        }
+        return order.status.eq(statusCond);
     }
 
     public List<Order> findAllWithMemberDelivery() {
